@@ -1,4 +1,7 @@
+from sqlite3 import IntegrityError
+
 from flask import jsonify, request, g, abort
+from sqlalchemy.exc import SQLAlchemyError, DBAPIError, PendingRollbackError
 
 from api import api
 from db.shared import db
@@ -152,7 +155,6 @@ def update_post(postId):
         post_values["text"] = text
 
     if post_values:
-
         post = Post.query.filter(Post.id == postId).one()
         if "tags" in post_values:
             post.tags = post_values["tags"]
@@ -165,7 +167,16 @@ def update_post(postId):
             for id in post_values["authorIds"]:
                 user_post = UserPost(user_id=id, post_id=postId)
                 if User.query.filter(User.id == id).scalar() is not None:
-                    db.session.add(user_post)
+                        exists = UserPost.query.filter(UserPost.user_id==id,UserPost.post_id==postId).scalar()
+                        if exists:
+                            return (
+                        jsonify(
+                            {"error": "Cannot add duplicate authorIds"}
+                        ),
+                        400,)
+                        else:
+                            db.session.add(user_post)
+
 
                 else:
                     return (
