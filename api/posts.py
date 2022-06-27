@@ -53,8 +53,8 @@ def get_posts():
         return abort(401)
 
     author_ids = request.args.get("authorIds")
-    sort_method = request.args.get("sortBy")
-    direction = request.args.get("direction")
+    sort_method = request.args.get("sortBy", "id")
+    direction = request.args.get("direction", "asc")
 
     if author_ids is None:
         return jsonify({"error": "Must provide at least one author id"}), 400
@@ -100,36 +100,48 @@ def get_posts():
     ids = author_ids.split(",")
     query = db.session.query(Post).join(UserPost).filter(UserPost.user_id.in_(ids))
 
-    match direction:
-        case Direction.desc.name:
-            if sort_method:
-                query = query.order_by(getattr(Post, sort_method).desc())
-            else:
-                query = query.order_by(Post.id.desc())
-        case Direction.asc.name:
-            if sort_method:
-                query = query.order_by(getattr(Post, sort_method).asc())
-            else:
-                query.order_by(Post.id.asc())
-        case _:
-            if sort_method:
-                query = query.order_by(getattr(Post, sort_method))
-            else:
-                query = query.order_by(Post.id)
+    query = query.order_by(getattr(getattr(Post, sort_method), direction)())
 
-    res = {"posts": rows_to_list(query.all())}
+    posts = rows_to_list(query.all())
+
+    res = {"posts": posts}
     return jsonify(res), 200
+
 
 
 @api.patch("/posts/<int:postId>")
 @auth_required
 def update_post(postId):
 
+    user = g.get("user")
+    if user is None:
+        return abort(401)
+
     data = request.get_json(force=True)
 
     author_ids = data.get("authorIds", None)
     tags = data.get("tags", None)
     text = data.get("text", None)
+
+    if isinstance(author_ids, list):
+        for id in author_ids:
+            if not isinstance(id, int):
+                return jsonify({"error": "authorIds must be an array of Ints"}), 400
+    elif author_ids is not None:
+        return (
+            jsonify({"error": "Invalid type: authorIds must be an array of Ints"}),
+            400,
+        )
+
+    if isinstance(tags, list):
+        for tag in tags:
+            if not isinstance(tag, str):
+                return jsonify({"error": "tags must be an array of strings"}), 400
+    elif tags is not None:
+        return jsonify({"error": "Invalid type: tags must be an array of strings"}), 400
+
+    if text is not None and not isinstance(text, str):
+        return jsonify({"error": "text must be a string"}), 400
 
     post_values = {}
     if author_ids:
@@ -173,9 +185,70 @@ def update_post(postId):
         res = {"post": updated_post}
         return jsonify(res), 200
 
-    else:
-        post = Post.query.get(postId)
-        res = row_to_dict(post)
-        return res, 200
+    post = Post.query.get(postId)
+    res = row_to_dict(post)
+    return jsonify(res), 200
 
-    return jsonify({"message": postId}), 200
+
+
+
+def get_posts():
+
+    user = g.get("user")
+    if user is None:
+        return abort(401)
+
+    author_ids = request.args.get("authorIds")
+    sort_method = request.args.get("sortBy", "id")
+    direction = request.args.get("direction", "asc")
+
+    if author_ids is None:
+        return jsonify({"error": "Must provide at least one author id"}), 400
+    if not isinstance(author_ids, str):
+        return jsonify({"error": "invalid type. authorIds must be a string"}), 400
+
+    if direction is not None:
+        if not isinstance(direction, str):
+            return jsonify({"error": "invalid type. sortBy must be a string"}), 400
+        if direction not in Direction.__members__:
+            return (
+                jsonify(
+                    {
+                        "error": "The only acceptable values for direction are: asc or desc "
+                    }
+                ),
+                400,
+            )
+
+    if sort_method is not None:
+        if not isinstance(sort_method, str):
+            return jsonify({"error": "invalid type. direction must be a string"}), 400
+        if sort_method not in Sorting.__members__:
+            return (
+                jsonify(
+                    {
+                        "error": "The only acceptable values for sortBy are: id, reads , likes and popularity"
+                    }
+                ),
+                400,
+            )
+
+    if re.match("^[0-9]+(,[0-9]+)*$", author_ids) is None:
+        return (
+            jsonify(
+                {
+                    "error": "authorIds must be a comma separated list of integer user IDs."
+                }
+            ),
+            400,
+        )
+
+    ids = author_ids.split(",")
+    query = db.session.query(Post).join(UserPost).filter(UserPost.user_id.in_(ids))
+
+    query = query.order_by(getattr(getattr(Post, sort_method), direction)())
+
+    posts = rows_to_list(query.all())
+
+    res = {"posts": posts}
+    return jsonify(res), 200
