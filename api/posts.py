@@ -1,7 +1,5 @@
-from sqlite3 import IntegrityError
 
 from flask import jsonify, request, g, abort
-from sqlalchemy.exc import SQLAlchemyError, DBAPIError, PendingRollbackError
 
 from api import api
 from db.shared import db
