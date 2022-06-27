@@ -111,7 +111,6 @@ def get_posts():
     return jsonify(res), 200
 
 
-
 @api.patch("/posts/<int:postId>")
 @auth_required
 def update_post(postId):
@@ -167,16 +166,16 @@ def update_post(postId):
             for id in post_values["authorIds"]:
                 user_post = UserPost(user_id=id, post_id=postId)
                 if User.query.filter(User.id == id).scalar() is not None:
-                        exists = UserPost.query.filter(UserPost.user_id==id,UserPost.post_id==postId).scalar()
-                        if exists:
-                            return (
-                        jsonify(
-                            {"error": "Cannot add duplicate authorIds"}
-                        ),
-                        400,)
-                        else:
-                            db.session.add(user_post)
-
+                    exists = UserPost.query.filter(
+                        UserPost.user_id == id, UserPost.post_id == postId
+                    ).scalar()
+                    if exists:
+                        return (
+                            jsonify({"error": "Cannot add duplicate authorIds"}),
+                            400,
+                        )
+                    else:
+                        db.session.add(user_post)
 
                 else:
                     return (
@@ -199,8 +198,7 @@ def update_post(postId):
     post = Post.query.get(postId)
     res = row_to_dict(post)
     updated_ids = [
-        user.user_id
-        for user in UserPost.query.filter(UserPost.post_id == postId).all()
+        user.user_id for user in UserPost.query.filter(UserPost.post_id == postId).all()
     ]
     res["authorIds"] = updated_ids
     return jsonify(res), 200
