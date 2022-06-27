@@ -187,68 +187,9 @@ def update_post(postId):
 
     post = Post.query.get(postId)
     res = row_to_dict(post)
-    return jsonify(res), 200
-
-
-
-
-def get_posts():
-
-    user = g.get("user")
-    if user is None:
-        return abort(401)
-
-    author_ids = request.args.get("authorIds")
-    sort_method = request.args.get("sortBy", "id")
-    direction = request.args.get("direction", "asc")
-
-    if author_ids is None:
-        return jsonify({"error": "Must provide at least one author id"}), 400
-    if not isinstance(author_ids, str):
-        return jsonify({"error": "invalid type. authorIds must be a string"}), 400
-
-    if direction is not None:
-        if not isinstance(direction, str):
-            return jsonify({"error": "invalid type. sortBy must be a string"}), 400
-        if direction not in Direction.__members__:
-            return (
-                jsonify(
-                    {
-                        "error": "The only acceptable values for direction are: asc or desc "
-                    }
-                ),
-                400,
-            )
-
-    if sort_method is not None:
-        if not isinstance(sort_method, str):
-            return jsonify({"error": "invalid type. direction must be a string"}), 400
-        if sort_method not in Sorting.__members__:
-            return (
-                jsonify(
-                    {
-                        "error": "The only acceptable values for sortBy are: id, reads , likes and popularity"
-                    }
-                ),
-                400,
-            )
-
-    if re.match("^[0-9]+(,[0-9]+)*$", author_ids) is None:
-        return (
-            jsonify(
-                {
-                    "error": "authorIds must be a comma separated list of integer user IDs."
-                }
-            ),
-            400,
-        )
-
-    ids = author_ids.split(",")
-    query = db.session.query(Post).join(UserPost).filter(UserPost.user_id.in_(ids))
-
-    query = query.order_by(getattr(getattr(Post, sort_method), direction)())
-
-    posts = rows_to_list(query.all())
-
-    res = {"posts": posts}
+    updated_ids = [
+        user.user_id
+        for user in UserPost.query.filter(UserPost.post_id == postId).all()
+    ]
+    res["authorIds"] = updated_ids
     return jsonify(res), 200
